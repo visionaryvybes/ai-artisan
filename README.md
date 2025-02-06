@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Artisan
+
+AI Artisan is a Next.js application that leverages AI for image enhancement, style transfer, colorization, face enhancement, and design suggestions. The application uses Hugging Face's AI models for processing images directly in the browser.
+
+## Features
+
+- Image Enhancement & Upscaling using Real-ESRGAN
+- Colorization with DeOldify
+- Style Transfer with AdaIN
+- Face Enhancement with GFPGAN
+- Image Segmentation with Unet
+
+## Prerequisites
+
+- Node.js 18.x or later
+- A Hugging Face API key (get one from [Hugging Face](https://huggingface.co/settings/tokens))
 
 ## Getting Started
 
-First, run the development server:
-
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repository-url>
+cd ai-artisan
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Create a `.env.local` file in the root directory and add your Hugging Face API key:
+```env
+NEXT_PUBLIC_HUGGING_FACE_API_KEY=your-api-key
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Start the development server:
+```bash
+npm run dev
+```
 
-## Learn More
+5. Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
 
-To learn more about Next.js, take a look at the following resources:
+## Usage
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Upload an image by dragging and dropping it into the designated area or clicking to select a file.
+2. Choose an AI feature to apply to your image:
+   - Image Enhancement: Improve image quality and resolution
+   - Colorization: Add color to black and white images
+   - Style Transfer: Apply artistic styles to your images
+   - Face Enhancement: Improve facial features and details
+   - Image Segmentation: Separate image into distinct parts
+3. Enter your Hugging Face API key if not already configured
+4. Click "Process Image" and wait for the results
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Technical Details
 
-## Deploy on Vercel
+- Built with Next.js 14 and TypeScript
+- Uses TensorFlow.js for client-side processing
+- Integrates with Hugging Face's AI models
+- Implements modern UI with Tailwind CSS
+- State management with Zustand
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Contributing
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
