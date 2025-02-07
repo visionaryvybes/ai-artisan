@@ -7,13 +7,23 @@ export const maxDuration = 60; // Maximum allowed for Hobby plan
 export const runtime = 'nodejs'; // Use Node.js runtime for Sharp
 
 export async function POST(request: NextRequest) {
+  console.log('Received request to /api/process');
+  
   try {
     const formData = await request.formData();
     const image = formData.get('image') as File;
     const enhancementLevel = parseFloat(formData.get('enhancementLevel') as string) || 1.0;
     const feature = formData.get('feature') as string || 'enhance';
 
+    console.log('Request parameters:', {
+      hasImage: !!image,
+      imageSize: image?.size,
+      feature,
+      enhancementLevel
+    });
+
     if (!image) {
+      console.error('No image provided');
       return NextResponse.json(
         { error: 'No image file provided' },
         { status: 400 }
@@ -21,6 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (image.size > MAX_FILE_SIZE) {
+      console.error('Image too large:', image.size);
       return NextResponse.json(
         { error: 'File size exceeds maximum limit of 10MB' },
         { status: 400 }
@@ -28,9 +39,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert image to buffer
+    console.log('Converting image to buffer');
     const bytes = await image.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
+    console.log('Initializing Sharp');
     // Initialize Sharp with optimized settings
     let processedImage = sharp(buffer, {
       failOnError: false,
@@ -38,6 +51,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Resize first to reduce processing time
+    console.log('Resizing image');
     processedImage = processedImage.resize({
       width: 2048,
       height: 2048,
@@ -46,6 +60,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Apply feature-specific processing
+    console.log('Applying feature:', feature);
     switch (feature) {
       case 'enhance':
         processedImage = processedImage
@@ -92,6 +107,7 @@ export async function POST(request: NextRequest) {
         break;
     }
 
+    console.log('Processing image with Sharp');
     // Optimize output
     const processedBuffer = await processedImage
       .webp({
@@ -100,6 +116,8 @@ export async function POST(request: NextRequest) {
         preset: 'photo'
       })
       .toBuffer();
+
+    console.log('Processing complete, buffer size:', processedBuffer.length);
 
     // Return processed image
     return new NextResponse(processedBuffer, {
@@ -115,7 +133,9 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Failed to process image'
+        error: error instanceof Error 
+          ? `Processing error: ${error.message}` 
+          : 'Unknown error occurred while processing image'
       },
       { status: 500 }
     );

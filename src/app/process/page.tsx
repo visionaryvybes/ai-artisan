@@ -63,6 +63,12 @@ export default function ProcessPage() {
       setError(null);
       setProgress(0);
 
+      console.log('Starting image processing:', {
+        imageSize: selectedImage.size,
+        imageType: selectedImage.type,
+        feature: selectedFeature
+      });
+
       const formData = new FormData();
       formData.append('image', selectedImage);
       formData.append('feature', selectedFeature);
@@ -77,17 +83,24 @@ export default function ProcessPage() {
       }, 2000);
 
       try {
+        console.log('Sending request to /api/process');
         const response = await fetch('/api/process', {
           method: 'POST',
           body: formData,
         });
 
+        console.log('Response status:', response.status);
+        
         if (!response.ok) {
           const errorText = await response.text();
+          console.error('Error response:', errorText);
           throw new Error(errorText || 'Failed to process image');
         }
 
+        console.log('Processing successful, creating blob URL');
         const blob = await response.blob();
+        console.log('Blob size:', blob.size, 'type:', blob.type);
+        
         const url = URL.createObjectURL(blob);
         setProcessedUrl(url);
         setProgress(100);
@@ -96,11 +109,13 @@ export default function ProcessPage() {
       }
     } catch (error: unknown) {
       console.error('Processing error:', error);
-      setError(
-        error instanceof Error 
-          ? error.message 
-          : 'An unexpected error occurred while processing the image'
-      );
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+        setError(`Error: ${error.message}`);
+      } else {
+        console.error('Unknown error type:', error);
+        setError('An unexpected error occurred while processing the image');
+      }
     } finally {
       setIsProcessing(false);
     }
