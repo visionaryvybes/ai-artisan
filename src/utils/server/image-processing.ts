@@ -13,8 +13,8 @@ interface ProcessingOptions {
   enhancementLevel?: number;
   detailGeneration?: {
     enabled: boolean;
-    strength?: number;  // 0-1: controls how much detail to generate
-    style?: 'realistic' | 'artistic' | 'balanced';  // different detail generation styles
+    strength: number;
+    style: 'realistic' | 'artistic' | 'balanced';
   };
   textureEnhancement?: {
     enabled: boolean;
@@ -24,7 +24,33 @@ interface ProcessingOptions {
   colorize?: boolean;
   colorIntensity?: number;  // 0-1: controls the intensity of colorization
   preserveDetails?: number;  // 0-1: how much of original details to preserve during colorization
+  optimizationEffort?: number;
+  onProgress?: (progress: number) => void;
 }
+
+// Optimized processing parameters for different scales
+const SCALE_OPTIMIZATIONS = {
+  2: {
+    claheSize: 32,  // Smaller window for more local contrast
+    recombStrength: 0.15,  // Very gentle detail enhancement
+    sharpening: { sigma: 0.3, strength: 0.2 }  // Subtle sharpening
+  },
+  4: {
+    claheSize: 32,
+    recombStrength: 0.12,
+    sharpening: { sigma: 0.25, strength: 0.15 }
+  },
+  8: {
+    claheSize: 16,
+    recombStrength: 0.1,
+    sharpening: { sigma: 0.2, strength: 0.1 }
+  },
+  16: {
+    claheSize: 16,
+    recombStrength: 0.08,
+    sharpening: { sigma: 0.15, strength: 0.08 }
+  }
+};
 
 function calculateOptimalDimensions(
   width: number, 
@@ -35,7 +61,15 @@ function calculateOptimalDimensions(
   let targetWidth = width * scale;
   let targetHeight = height * scale;
   
-  const maxSize = 8192; // Maximum size supported by most GPUs
+  // More aggressive size limits for higher scales
+  const MAX_SIZES = {
+    2: 8192,
+    4: 6144,
+    8: 4096,
+    16: 3072
+  };
+  const maxSize = MAX_SIZES[scale as keyof typeof MAX_SIZES] || 8192;
+  
   const aspectRatio = width / height;
   
   // If dimensions exceed maxSize, scale down while maintaining aspect ratio
@@ -57,163 +91,112 @@ function calculateOptimalDimensions(
 }
 
 export async function processImage(
-  file: File | Buffer,
+  inputBuffer: Buffer,
   options: ProcessingOptions = {}
 ): Promise<Buffer> {
-  let buffer: Buffer;
-  
-  if (Buffer.isBuffer(file)) {
-    buffer = file;
-  } else {
-    const arrayBuffer = await (file as File).arrayBuffer();
-    buffer = Buffer.from(arrayBuffer);
-  }
-
-  const image = sharp(buffer, {
-    failOnError: false,
-    limitInputPixels: false,
-    sequentialRead: true
-  });
-  
-  const metadata = await image.metadata();
-  
-  if (!metadata.width || !metadata.height) {
-    throw new Error('Invalid image dimensions');
-  }
-
-  // Calculate target dimensions with scaling
-  const scale = options.resize?.scale || 2;
-  const { width, height } = calculateOptimalDimensions(metadata.width, metadata.height, scale);
-  
-  // Create processing pipeline with optimized settings
-  let pipeline = image
-    .resize(width, height, {
-      fit: options.resize?.fit || 'inside',
-      withoutEnlargement: false,
-      kernel: sharp.kernel.lanczos3,
-      fastShrinkOnLoad: true
-    });
-
-  if (options.enhance) {
-    const level = options.enhancementLevel || 1.0;
-    const detailStrength = options.detailGeneration?.strength || 0.5;
-    const style = options.detailGeneration?.style || 'balanced';
-    
-    // Base enhancement pipeline
-    pipeline = pipeline
-      .normalize()
-      // Enhanced detail generation with better preservation
-      .recomb([
-        [1.2 + (detailStrength * 0.4), -0.1, -0.1],
-        [-0.1, 1.2 + (detailStrength * 0.4), -0.1],
-        [-0.1, -0.1, 1.2 + (detailStrength * 0.4)]
-      ])
-      // Adaptive contrast enhancement
-      .linear(
-        1.0 + (detailStrength * 0.2),
-        -(detailStrength * 5)
-      );
-
-    // Style-specific processing
-    switch (style) {
-      case 'artistic':
-        pipeline = pipeline
-          .modulate({
-            brightness: 1.1,
-            saturation: 1.3,
-            hue: 5
-          })
-          .gamma(1.2)  // Increased for more contrast
-          .clahe({
-            width: 128,
-            height: 128,
-            maxSlope: 4
-          });
-        break;
-      
-      case 'realistic':
-        pipeline = pipeline
-          .modulate({
-            brightness: 1.05,
-            saturation: 1.1,
-            hue: 0
-          })
-          .gamma(1.1)  // Changed from 0.9 for better detail preservation
-          .clahe({
-            width: 64,
-            height: 64,
-            maxSlope: 2
-          });
-        break;
-      
-      default: // balanced
-        pipeline = pipeline
-          .modulate({
-            brightness: 1.08,
-            saturation: 1.15,
-            hue: 2
-          })
-          .gamma(1.15)  // Slightly increased for balanced look
-          .clahe({
-            width: 96,
-            height: 96,
-            maxSlope: 3
-          });
-    }
-
-    // Final detail enhancement
-    pipeline = pipeline
-      .sharpen({
-        sigma: 0.8 + (detailStrength * 0.5),
-        m1: 0.5 * level,
-        m2: 0.2 * level,
-        x1: 2,
-        y2: 10,
-        y3: 20
-      });
-  }
-
-  // Set output format and quality
-  const format = options.format || 'png';
-  const quality = options.quality || 95;
-  
-  switch (format) {
-    case 'jpeg':
-      pipeline = pipeline.jpeg({
-        quality,
-        progressive: true,
-        chromaSubsampling: '4:4:4',
-        trellisQuantisation: true,
-        overshootDeringing: true,
-        optimizeScans: true
-      });
-      break;
-    case 'png':
-      pipeline = pipeline.png({
-        progressive: true,
-        compressionLevel: 6, // Reduced for better speed
-        palette: false,
-        quality,
-        dither: 0.0,
-        colors: 256
-      });
-      break;
-    case 'webp':
-      pipeline = pipeline.webp({
-        quality,
-        effort: 4, // Reduced for better speed
-        smartSubsample: true,
-        force: true,
-        nearLossless: true
-      });
-      break;
-  }
+  const startTime = Date.now();
+  let pipeline: sharp.Sharp | null = null;
 
   try {
-    return await pipeline.toBuffer();
+    // Validate input buffer
+    if (!inputBuffer || inputBuffer.length === 0) {
+      throw new Error('Invalid input buffer');
+    }
+
+    // Create Sharp instance with safe settings
+    pipeline = sharp(inputBuffer, {
+      failOn: 'none',
+      limitInputPixels: 512000000, // Limit to 512MP
+      sequentialRead: true,
+      pages: 1
+    });
+
+    // Get and validate image info
+    const metadata = await pipeline.metadata();
+    if (!metadata.width || !metadata.height) {
+      throw new Error('Invalid image dimensions');
+    }
+
+    if (metadata.width * metadata.height > 512000000) {
+      throw new Error('Image dimensions too large');
+    }
+
+    const scale = options.resize?.scale || 2;
+    
+    // Calculate dimensions before processing
+    const { width, height } = calculateOptimalDimensions(metadata.width, metadata.height, scale);
+    
+    // Basic preprocessing
+    pipeline = pipeline
+      .rotate() // Auto-rotate based on EXIF
+      .removeAlpha()
+      .resize(width, height, {
+        fit: 'contain',
+        kernel: 'lanczos3',
+        fastShrinkOnLoad: true,
+        withoutEnlargement: false
+      });
+
+    // Enhancement pipeline
+    if (options.enhance) {
+      const level = options.enhancementLevel || 1.0;
+      
+      pipeline = pipeline
+        .normalize()
+        .modulate({
+          brightness: 1 + (level * 0.1),
+          saturation: 1 + (level * 0.2)
+        });
+
+      if (options.detailGeneration?.enabled) {
+        const strength = options.detailGeneration.strength || 0.5;
+        pipeline = pipeline
+          .sharpen({
+            sigma: 0.5 + (strength * 0.5),
+            m1: 0.1 + (strength * 0.2),
+            m2: 0.1,
+            x1: 2,
+            y2: 10,
+            y3: 20
+          });
+      }
+    }
+
+    // Process final output
+    const format = options.format || 'png';
+    const formatOptions = {
+      quality: options.quality || 90,
+      effort: options.optimizationEffort || 4,
+      progressive: true,
+      chromaSubsampling: '4:4:4'
+    };
+
+    let result: Buffer;
+    if (format === 'png') {
+      result = await pipeline.png(formatOptions as sharp.PngOptions).toBuffer();
+    } else if (format === 'jpeg') {
+      result = await pipeline.jpeg(formatOptions as sharp.JpegOptions).toBuffer();
+    } else {
+      result = await pipeline.webp(formatOptions as sharp.WebpOptions).toBuffer();
+    }
+
+    if (!result || result.length === 0) {
+      throw new Error('Processing resulted in empty buffer');
+    }
+
+    return result;
   } catch (error) {
-    console.error('Image processing error:', error);
-    throw new Error('Failed to process image. Try reducing the image size or using a different format.');
+    console.error('Error in image processing:', error);
+    throw new Error(error instanceof Error ? error.message : 'Unknown processing error');
+  } finally {
+    if (pipeline) {
+      try {
+        // @ts-ignore - Destroy is available but not in types
+        if (pipeline.destroy) pipeline.destroy();
+      } catch (e) {
+        console.error('Error destroying pipeline:', e);
+      }
+    }
   }
 }
 

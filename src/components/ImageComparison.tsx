@@ -1,115 +1,110 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
 import Image from 'next/image';
+import { useEffect, useRef, useState } from 'react';
 
 interface ImageComparisonProps {
   originalUrl: string;
-  processedUrl: string | null;
-  isProcessing: boolean;
+  processedUrl: string;
+  isProcessing?: boolean;
 }
 
 export function ImageComparison({ originalUrl, processedUrl, isProcessing }: ImageComparisonProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleMove = useCallback((clientX: number) => {
+  const handleMove = (clientX: number) => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      const x = clientX - rect.left;
-      const newPosition = (x / rect.width) * 100;
-      setPosition(Math.min(Math.max(newPosition, 0), 100));
+      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      const percentage = (x / rect.width) * 100;
+      setPosition(percentage);
     }
-  }, []);
-
-  const handleMouseDown = useCallback(() => setIsDragging(true), []);
-  const handleMouseUp = useCallback(() => setIsDragging(false), []);
-  
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (isDragging) handleMove(e.clientX);
-  }, [isDragging, handleMove]);
-  
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    handleMove(e.touches[0].clientX);
-  }, [handleMove]);
+  };
 
   useEffect(() => {
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      window.addEventListener('touchmove', handleTouchMove);
-      window.addEventListener('touchend', handleMouseUp);
-    }
+    const handleMouseUp = () => setIsDragging(false);
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) handleMove(e.clientX);
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mousemove', handleMouseMove);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleMouseUp);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousemove', handleMouseMove);
     };
-  }, [isDragging, handleMouseMove, handleMouseUp, handleTouchMove]);
+  }, [isDragging]);
 
   return (
-    <div
+    <div 
       ref={containerRef}
-      className="relative w-full aspect-video overflow-hidden rounded-lg"
+      className="relative w-full aspect-[3/2] rounded-xl overflow-hidden cursor-ew-resize"
+      onMouseDown={(e) => {
+        setIsDragging(true);
+        handleMove(e.clientX);
+      }}
     >
       {/* Original Image */}
-      <div className="absolute top-0 left-0 w-full h-full">
-        <Image
-          src={originalUrl}
-          alt="Original"
-          fill
-          className="object-contain"
-          unoptimized // Since we're dealing with local blobs
-        />
+      <div className="absolute inset-0">
+        {originalUrl && (
+          <Image
+            src={originalUrl}
+            alt="Original image"
+            fill
+            className="object-cover"
+            unoptimized
+            onError={(e) => {
+              console.error('Error loading original image:', e);
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+            }}
+          />
+        )}
       </div>
 
       {/* Processed Image */}
-      {processedUrl && (
-        <div
-          className="absolute top-0 left-0 w-full h-full"
-          style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
-        >
+      <div 
+        className="absolute inset-0"
+        style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
+      >
+        {processedUrl && (
           <Image
             src={processedUrl}
-            alt="Processed"
+            alt="Processed image"
             fill
-            className="object-contain"
-            unoptimized // Since we're dealing with local blobs
+            className="object-cover"
+            unoptimized
+            onError={(e) => {
+              console.error('Error loading processed image:', e);
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+            }}
           />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Slider */}
-      {processedUrl && (
-        <div
-          className="absolute top-0 bottom-0 w-1 bg-white cursor-ew-resize"
-          style={{ left: `${position}%` }}
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleMouseDown}
-        >
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center">
-            <svg
-              className="w-4 h-4 text-gray-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 7h8M8 12h8M8 17h8"
-              />
-            </svg>
-          </div>
+      <div 
+        className="absolute inset-y-0"
+        style={{ left: `${position}%` }}
+      >
+        <div className="absolute inset-y-0 -left-px w-0.5 bg-white/80" />
+        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 bg-white/80 rounded-full flex items-center justify-center shadow-lg">
+          <svg className="w-5 h-5 text-gray-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+          </svg>
         </div>
-      )}
+      </div>
 
-      {/* Processing Overlay */}
+      {/* Loading Overlay */}
       {isProcessing && (
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-          <div className="text-white text-xl font-semibold">Processing...</div>
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 rounded-full bg-white/90 animate-bounce [animation-delay:-0.3s]" />
+            <div className="w-4 h-4 rounded-full bg-white/90 animate-bounce [animation-delay:-0.15s]" />
+            <div className="w-4 h-4 rounded-full bg-white/90 animate-bounce" />
+          </div>
         </div>
       )}
     </div>

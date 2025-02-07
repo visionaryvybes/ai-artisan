@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import sharp from 'sharp';
 import { processImage } from '@/utils/server/image-processing';
 import { defaultRateLimiter } from '@/utils/rate-limit';
-import { MAX_FILE_SIZE } from '@/config/ai-models';
 
-// Configure the maximum request size using route segment config
+// Configure server settings
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes timeout
 export const runtime = 'nodejs';
+
+// Configure memory limit for Sharp
+sharp.cache(false); // Disable sharp cache to prevent memory issues
+sharp.concurrency(1); // Limit concurrent processing
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,48 +27,54 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const image = formData.get('image') as File;
-    const colorIntensity = parseFloat(formData.get('colorIntensity') as string);
-    const preserveDetails = parseFloat(formData.get('preserveDetails') as string);
+    const file = formData.get('image') as Blob;
+    const colorIntensity = Number(formData.get('colorIntensity')) || 0.5;
+    const preserveDetails = Number(formData.get('preserveDetails')) || 0.7;
 
-    if (!image) {
-      return NextResponse.json(
-        { error: 'No image file provided' },
-        { status: 400 }
-      );
+    if (!file) {
+      return NextResponse.json({ error: 'No image provided' }, { status: 400 });
     }
 
-    if (image.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: 'File size exceeds maximum limit of 10MB' },
-        { status: 400 }
-      );
+    // Validate file size
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ 
+        error: 'File size must be under 10MB for colorization.'
+      }, { status: 400 });
     }
 
-    // Process the image with colorization settings
-    const processedBuffer = await processImage(image, {
-      colorize: true,
-      colorIntensity,
-      preserveDetails,
-      format: 'png',
-      quality: 100
-    });
+    const buffer = Buffer.from(await file.arrayBuffer());
+    
+    // Process the image with timeout
+    const timeoutMs = 60000; // 1 minute timeout for colorization
+    const processedBuffer = await Promise.race([
+      processImage(buffer, {
+        colorize: true,
+        colorIntensity,
+        preserveDetails,
+        format: 'png',
+        quality: 100
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Processing timeout')), timeoutMs)
+      )
+    ]) as Buffer;
 
-    // Return processed image
     return new NextResponse(processedBuffer, {
       headers: {
         'Content-Type': 'image/png',
+        'Content-Length': processedBuffer.length.toString(),
         'Cache-Control': 'public, max-age=31536000, immutable'
       }
     });
   } catch (error) {
-    console.error('Error processing image:', error);
-    
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Failed to process image'
-      },
-      { status: 500 }
-    );
+    console.error('Colorization error:', error);
+    return NextResponse.json({ 
+      error: 'Failed to colorize image',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  } finally {
+    // Clean up Sharp cache
+    sharp.cache(false);
   }
 } 
