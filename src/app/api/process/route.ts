@@ -5,7 +5,7 @@ import { configureSharp, cleanupSharp } from '@/utils/sharp-config';
 
 // Configure server settings
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // 5 minutes timeout
+export const maxDuration = 60; // Setting to maximum allowed for hobby plan
 export const runtime = 'nodejs';
 
 // Configure processing limits based on scale
