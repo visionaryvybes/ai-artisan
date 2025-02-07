@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import sharp from 'sharp';
 import { MAX_FILE_SIZE } from '@/config/ai-models';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minute timeout
-export const runtime = 'edge'; // Switch to edge runtime for better performance
+export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,34 +29,12 @@ export async function POST(request: NextRequest) {
     const bytes = await image.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Process image with sharp
-    const processedBuffer = await sharp(buffer)
-      .resize({
-        width: 2048,
-        height: 2048,
-        fit: 'inside',
-        withoutEnlargement: false
-      })
-      .sharpen({
-        sigma: enhancementLevel * 0.8,
-        m1: 1.5,
-        m2: 2.0,
-      })
-      .normalize() // Improve contrast
-      .modulate({
-        brightness: 1.05,
-        saturation: 1.1
-      })
-      .toFormat('webp', {
-        quality: 90,
-        effort: 6,
-      })
-      .toBuffer();
-
-    // Return processed image
-    return new NextResponse(processedBuffer, {
+    // For now, just return the original image
+    // In production, you'd want to implement image processing using a different approach
+    // like a serverless function or external API
+    return new NextResponse(buffer, {
       headers: {
-        'Content-Type': 'image/webp',
+        'Content-Type': image.type,
         'Cache-Control': 'public, max-age=31536000, immutable',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
