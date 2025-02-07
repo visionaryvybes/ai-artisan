@@ -64,21 +64,39 @@ export default function ProcessPage() {
       const formData = new FormData();
       formData.append('image', selectedImage);
       formData.append('feature', selectedFeature);
-      formData.append('enhancementLevel', '1.0');
 
       const response = await fetch('/api/process', {
         method: 'POST',
         body: formData
       });
 
+      const contentType = response.headers.get('content-type');
+
       if (!response.ok) {
-        throw new Error('Failed to process image');
+        let errorMessage = 'Failed to process image';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.details || errorMessage;
+        } catch {
+          // If we can't parse the error as JSON, use the status text
+          errorMessage = `Error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      if (!contentType?.includes('image/')) {
+        throw new Error('Server did not return an image');
       }
 
       const blob = await response.blob();
+      if (blob.size === 0) {
+        throw new Error('Received empty image data');
+      }
+
       const url = URL.createObjectURL(blob);
       setProcessedUrl(url);
     } catch (error) {
+      console.error('Processing error:', error);
       setError(error instanceof Error ? error.message : 'Failed to process image');
     } finally {
       setIsProcessing(false);
