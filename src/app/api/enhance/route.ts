@@ -5,7 +5,7 @@ import { configureSharp, cleanupSharp } from '@/utils/sharp-config';
 
 // Configure server settings
 export const dynamic = 'force-dynamic';
-export const maxDuration = 600;
+export const maxDuration = 60;
 export const runtime = 'nodejs';
 
 // Configure processing limits based on scale
