@@ -25,16 +25,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert image to buffer
-    const bytes = await image.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    // Forward the request to the processing endpoint
+    const processUrl = new URL(request.url);
+    processUrl.pathname = '/api/process';
 
-    // For now, just return the original image
-    // In production, you'd want to implement image processing using a different approach
-    // like a serverless function or external API
-    return new NextResponse(buffer, {
+    const processResponse = await fetch(processUrl.toString(), {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!processResponse.ok) {
+      const error = await processResponse.text();
+      throw new Error(error || 'Failed to process image');
+    }
+
+    const processedBuffer = await processResponse.arrayBuffer();
+
+    return new NextResponse(processedBuffer, {
       headers: {
-        'Content-Type': image.type,
+        'Content-Type': 'image/webp',
         'Cache-Control': 'public, max-age=31536000, immutable',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
