@@ -1,4 +1,3 @@
-import { Card } from './card';
 import { ReactNode } from 'react';
 
 interface FeatureCardProps {
@@ -9,7 +8,7 @@ interface FeatureCardProps {
 
 export function FeatureCard({ icon, title, description }: FeatureCardProps) {
   return (
-    <Card className="p-6 bg-gray-900/50 backdrop-blur-sm border-purple-500/20 hover:border-purple-500/30 transition-all duration-300 hover:scale-[1.02] group">
+    <div className="p-6 bg-gray-900/50 backdrop-blur-sm border border-purple-500/20 hover:border-purple-500/30 transition-all duration-300 hover:scale-[1.02] group rounded-xl">
       <div className="space-y-4">
         <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform duration-300">
           {icon}
@@ -23,6 +22,6 @@ export function FeatureCard({ icon, title, description }: FeatureCardProps) {
           </p>
         </div>
       </div>
-    </Card>
+    </div>
   );
 } 

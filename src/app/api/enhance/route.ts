@@ -3,6 +3,11 @@ import { processImage } from '@/utils/server/image-processing';
 import { defaultRateLimiter } from '@/utils/rate-limit';
 import { MAX_FILE_SIZE } from '@/config/ai-models';
 
+// Configure the maximum request size using route segment config
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // 1 minute timeout (hobby plan limit)
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   try {
     // Apply rate limiting
@@ -72,13 +77,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// Configure the maximum request size
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '20mb' // Reduced from 50mb since we're processing smaller images
-    }
-  }
-}; 
+} 

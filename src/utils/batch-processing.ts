@@ -30,7 +30,6 @@ interface BatchProcessingOptions {
       strength?: number;
       preservation?: number;
     };
-    [key: string]: number | boolean | { [key: string]: unknown } | undefined;
   };
   concurrency?: number;
   onProgress?: (progress: BatchProgress) => void;
@@ -60,10 +59,15 @@ export async function processBatch(
         const tensor = await loadImageAsTensor(file);
         const processedTensor = tf.tidy(() => {
           const batched = tensor.expandDims(0);
-          const processed = model.predict([
-            batched,
-            ...Object.values(parameters).map(p => tf.scalar(p))
-          ]) as tf.Tensor4D;
+          // Convert parameters to tensor scalars with proper type checking
+          const paramValues = Object.values(parameters).map(p => {
+            if (typeof p === 'number') return tf.scalar(p);
+            if (typeof p === 'boolean') return tf.scalar(p ? 1 : 0);
+            if (p === undefined) return tf.scalar(0);
+            return tf.scalar(0); // default case
+          });
+          
+          const processed = model.predict([batched, ...paramValues]) as tf.Tensor4D;
           return processed.squeeze([0]) as tf.Tensor3D;
         });
 

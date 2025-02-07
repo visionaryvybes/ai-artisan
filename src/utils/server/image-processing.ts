@@ -21,6 +21,9 @@ interface ProcessingOptions {
     strength?: number;  // 0-1: controls texture enhancement
     preservation?: number;  // 0-1: how much of original texture to preserve
   };
+  colorize?: boolean;
+  colorIntensity?: number;  // 0-1: controls the intensity of colorization
+  preserveDetails?: number;  // 0-1: how much of original details to preserve during colorization
 }
 
 function calculateOptimalDimensions(
