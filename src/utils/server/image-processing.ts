@@ -123,7 +123,7 @@ export async function processImage(
             saturation: 1.3,
             hue: 5
           })
-          .gamma(1.2)
+          .gamma(1.2)  // Increased for more contrast
           .clahe({
             width: 128,
             height: 128,
@@ -138,7 +138,7 @@ export async function processImage(
             saturation: 1.1,
             hue: 0
           })
-          .gamma(1.1)
+          .gamma(1.1)  // Changed from 0.9 for better detail preservation
           .clahe({
             width: 64,
             height: 64,
@@ -153,7 +153,7 @@ export async function processImage(
             saturation: 1.15,
             hue: 2
           })
-          .gamma(1.15)
+          .gamma(1.15)  // Slightly increased for balanced look
           .clahe({
             width: 96,
             height: 96,

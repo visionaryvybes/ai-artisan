@@ -5,7 +5,7 @@ import { MAX_FILE_SIZE } from '@/config/ai-models';
 
 // Configure the maximum request size using route segment config
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // 1 minute timeout (hobby plan limit)
+export const maxDuration = 300; // 5 minutes timeout
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {

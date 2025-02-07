@@ -3,7 +3,7 @@ import Image from 'next/image';
 
 interface ImageComparisonProps {
   originalUrl: string;
-  processedUrl: string | undefined;
+  processedUrl: string | null | undefined;
   isProcessing: boolean;
 }
 

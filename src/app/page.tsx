@@ -3,23 +3,102 @@
 import { useState } from 'react';
 import { Slider } from '@/components/ui/slider';
 import { useDropzone } from 'react-dropzone';
-import { Sparkles, ImageIcon, Zap } from 'lucide-react';
+import { Sparkles, ImageIcon, Zap, Download, ArrowRight } from 'lucide-react';
 import { FeatureCard } from '@/components/ui/feature-card';
+import { ImageComparison } from '@/components/ui/image-comparison';
+import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function HomePage() {
+  const router = useRouter();
   const [enhancementLevel, setEnhancementLevel] = useState(1.0);
   const [detailStrength, setDetailStrength] = useState(0.5);
   const [style, setStyle] = useState<'realistic' | 'artistic' | 'balanced'>('balanced');
   const [selectedScale, setSelectedScale] = useState<2 | 4 | 8 | 16>(2);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [originalImage, setOriginalImage] = useState<string | null>(null);
+  const [processedImage, setProcessedImage] = useState<string | null>(null);
+  const [currentFileName, setCurrentFileName] = useState<string>('');
+
+  const processImage = async (file: File) => {
+    try {
+      setIsProcessing(true);
+      setCurrentFileName(file.name);
+      
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('enhancementLevel', enhancementLevel.toString());
+      formData.append('detailStrength', detailStrength.toString());
+      formData.append('style', style);
+      formData.append('scale', selectedScale.toString());
+
+      const response = await fetch('/api/enhance', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to process image');
+      }
+
+      const blob = await response.blob();
+      const processedUrl = URL.createObjectURL(blob);
+      setProcessedImage(processedUrl);
+
+      // Save to gallery
+      const savedImages = JSON.parse(localStorage.getItem('processedImages') || '[]');
+      savedImages.push({
+        id: uuidv4(),
+        originalName: file.name,
+        processedUrl,
+        timestamp: new Date().toISOString(),
+        scale: selectedScale
+      });
+      localStorage.setItem('processedImages', JSON.stringify(savedImages));
+
+    } catch (error) {
+      console.error('Error processing image:', error);
+      alert(error instanceof Error ? error.message : 'Failed to process image');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const downloadImage = async () => {
+    if (!processedImage) return;
+    
+    try {
+      const response = await fetch(processedImage);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `enhanced_${currentFileName || 'image.png'}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading image:', error);
+      alert('Failed to download image');
+    }
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
       'image/*': ['.png', '.jpg', '.jpeg', '.webp']
     },
-    maxFiles: 10,
-    maxSize: 50 * 1024 * 1024, // 50MB
-    onDrop: () => {
-      // We'll handle file processing later
+    maxFiles: 1,
+    maxSize: 10 * 1024 * 1024, // 10MB
+    onDrop: async (acceptedFiles) => {
+      if (acceptedFiles.length > 0) {
+        const file = acceptedFiles[0];
+        const imageUrl = URL.createObjectURL(file);
+        setOriginalImage(imageUrl);
+        await processImage(file);
+      }
     }
   });
 
@@ -35,6 +114,15 @@ export default function HomePage() {
           <p className="text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
             Transform your images with cutting-edge AI technology. Enhance quality and details with advanced machine learning models.
           </p>
+          <div className="mt-8 flex items-center justify-center gap-4">
+            <Button
+              onClick={() => router.push('/gallery')}
+              className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700"
+            >
+              View Gallery
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+          </div>
         </div>
 
         <div className="container mx-auto px-4 pb-20">
@@ -55,7 +143,7 @@ export default function HomePage() {
               title="Real-time Processing"
               description="Fast and efficient image processing"
             />
-          </div>
+      </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Upload Section */}
@@ -81,13 +169,25 @@ export default function HomePage() {
                     ) : (
                       <>
                         <p className="text-gray-300 text-lg">Drag & drop your images here, or click to browse</p>
-                        <p className="text-sm text-gray-500">Supports PNG, JPG, JPEG, WEBP up to 50MB</p>
-                        <p className="text-sm text-gray-500">Upload up to 10 images at once</p>
+                        <p className="text-sm text-gray-500">Supports PNG, JPG, JPEG, WEBP up to 10MB</p>
                       </>
                     )}
                   </div>
                 </div>
               </div>
+
+              {originalImage && (
+                <div className="p-8 bg-gray-900/50 backdrop-blur-sm border border-purple-500/20 hover:border-purple-500/30 transition-colors rounded-xl">
+                  <h2 className="text-2xl font-semibold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
+                    Preview
+                  </h2>
+                  <ImageComparison
+                    originalUrl={originalImage}
+                    processedUrl={processedImage}
+                    isProcessing={isProcessing}
+                  />
+                      </div>
+                    )}
             </div>
 
             {/* Enhancement Options */}
@@ -165,6 +265,26 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+
+        {originalImage && processedImage && (
+          <div className="fixed bottom-8 right-8 flex gap-4">
+            <Button
+              onClick={downloadImage}
+              className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700"
+            >
+              <Download className="w-5 h-5 mr-2" />
+              Download Enhanced Image
+            </Button>
+            <Button
+              onClick={() => router.push('/gallery')}
+              variant="outline"
+              className="border-purple-500/20 hover:border-purple-500/40"
+            >
+              <ArrowRight className="w-5 h-5 mr-2" />
+              Go to Gallery
+            </Button>
+          </div>
+        )}
       </div>
     </main>
   );
