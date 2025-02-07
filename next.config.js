@@ -10,13 +10,13 @@ const nextConfig = {
   },
   // Configure page extensions
   pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
-  // Enable development mode features
+  // Enable production mode features
   reactStrictMode: true,
   // Configure image domains
   images: {
-    domains: ['localhost'],
+    domains: ['localhost', 'ai-artisan.vercel.app'],
     formats: ['image/avif', 'image/webp'],
-    unoptimized: true // Allow unoptimized images in development
+    unoptimized: process.env.NODE_ENV === 'development'
   },
   // Enable webpack memory optimization
   webpack: (config) => {
@@ -25,7 +25,9 @@ const nextConfig = {
       aggregateTimeout: 300,
     };
     return config;
-  }
+  },
+  // Output as standalone for better Vercel compatibility
+  output: 'standalone'
 };
 
 module.exports = nextConfig; 
