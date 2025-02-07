@@ -31,7 +31,6 @@ export default function ProcessPage() {
   const [selectedFeature, setSelectedFeature] = useState<AIFeature | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -49,7 +48,7 @@ export default function ProcessPage() {
       'image/*': ['.png', '.jpg', '.jpeg', '.webp']
     },
     maxFiles: 1,
-    maxSize: 10 * 1024 * 1024 // 10MB
+    maxSize: 10 * 1024 * 1024
   });
 
   const processImage = async () => {
@@ -61,61 +60,26 @@ export default function ProcessPage() {
     try {
       setIsProcessing(true);
       setError(null);
-      setProgress(0);
-
-      console.log('Starting image processing:', {
-        imageSize: selectedImage.size,
-        imageType: selectedImage.type,
-        feature: selectedFeature
-      });
 
       const formData = new FormData();
       formData.append('image', selectedImage);
       formData.append('feature', selectedFeature);
       formData.append('enhancementLevel', '1.0');
 
-      // Start progress simulation
-      const progressInterval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 95) return prev;
-          return prev + 5;
-        });
-      }, 2000);
+      const response = await fetch('/api/process', {
+        method: 'POST',
+        body: formData
+      });
 
-      try {
-        console.log('Sending request to /api/process');
-        const response = await fetch('/api/process', {
-          method: 'POST',
-          body: formData,
-        });
-
-        console.log('Response status:', response.status);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Error response:', errorText);
-          throw new Error(errorText || 'Failed to process image');
-        }
-
-        console.log('Processing successful, creating blob URL');
-        const blob = await response.blob();
-        console.log('Blob size:', blob.size, 'type:', blob.type);
-        
-        const url = URL.createObjectURL(blob);
-        setProcessedUrl(url);
-        setProgress(100);
-      } finally {
-        clearInterval(progressInterval);
+      if (!response.ok) {
+        throw new Error('Failed to process image');
       }
-    } catch (error: unknown) {
-      console.error('Processing error:', error);
-      if (error instanceof Error) {
-        console.error('Error details:', error.message);
-        setError(`Error: ${error.message}`);
-      } else {
-        console.error('Unknown error type:', error);
-        setError('An unexpected error occurred while processing the image');
-      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setProcessedUrl(url);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to process image');
     } finally {
       setIsProcessing(false);
     }
@@ -207,23 +171,12 @@ export default function ProcessPage() {
               {isProcessing ? (
                 <div className="flex items-center gap-2">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                  <span>Processing... {progress}%</span>
+                  <span>Processing...</span>
                 </div>
               ) : (
                 'Process Image'
               )}
             </button>
-
-            {isProcessing && (
-              <div className="mt-4 w-full">
-                <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-                  <div
-                    className="h-2 rounded-full bg-indigo-500 transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  ></div>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
 
