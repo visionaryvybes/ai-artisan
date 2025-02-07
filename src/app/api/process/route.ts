@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import { MAX_FILE_SIZE } from '@/config/ai-models';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // 5 minute timeout
+export const maxDuration = 60; // Maximum allowed for Hobby plan
 export const runtime = 'nodejs'; // Use Node.js runtime for Sharp
 
 export async function POST(request: NextRequest) {
@@ -31,10 +31,13 @@ export async function POST(request: NextRequest) {
     const bytes = await image.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Process image with sharp based on feature
-    let processedImage = sharp(buffer);
+    // Initialize Sharp with optimized settings
+    let processedImage = sharp(buffer, {
+      failOnError: false,
+      limitInputPixels: 50000000 // Limit input size for safety
+    });
 
-    // Base processing for all features
+    // Resize first to reduce processing time
     processedImage = processedImage.resize({
       width: 2048,
       height: 2048,
@@ -42,14 +45,11 @@ export async function POST(request: NextRequest) {
       withoutEnlargement: false
     });
 
+    // Apply feature-specific processing
     switch (feature) {
       case 'enhance':
         processedImage = processedImage
-          .sharpen({
-            sigma: enhancementLevel * 0.8,
-            m1: 1.5,
-            m2: 2.0,
-          })
+          .sharpen(enhancementLevel * 0.8)
           .normalize()
           .modulate({
             brightness: 1.05,
@@ -73,20 +73,12 @@ export async function POST(request: NextRequest) {
             saturation: 1.2,
             brightness: 1.05
           })
-          .sharpen({
-            sigma: 0.5,
-            m1: 1.0,
-            m2: 2.0,
-          });
+          .sharpen();
         break;
 
       case 'face':
         processedImage = processedImage
-          .sharpen({
-            sigma: 0.8,
-            m1: 1.5,
-            m2: 2.0,
-          })
+          .sharpen()
           .modulate({
             brightness: 1.1,
             saturation: 1.1
@@ -100,11 +92,12 @@ export async function POST(request: NextRequest) {
         break;
     }
 
-    // Convert to WebP for better quality/size ratio
+    // Optimize output
     const processedBuffer = await processedImage
-      .toFormat('webp', {
-        quality: 90,
-        effort: 6,
+      .webp({
+        quality: 85,
+        effort: 4, // Lower effort for faster processing
+        preset: 'photo'
       })
       .toBuffer();
 

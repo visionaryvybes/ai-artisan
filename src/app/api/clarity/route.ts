@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { MAX_FILE_SIZE } from '@/config/ai-models';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // 5 minute timeout
+export const maxDuration = 60; // Maximum allowed for Hobby plan
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
