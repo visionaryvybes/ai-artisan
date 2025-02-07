@@ -66,12 +66,9 @@ export default function ProcessPage() {
       const formData = new FormData();
       formData.append('image', selectedImage);
       formData.append('feature', selectedFeature);
+      formData.append('enhancementLevel', '1.0');
 
-      // Create AbortController for timeout (increased to 3 minutes)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
-
-      // Start progress simulation with slower increments
+      // Start progress simulation
       const progressInterval = setInterval(() => {
         setProgress(prev => {
           if (prev >= 95) return prev;
@@ -80,18 +77,14 @@ export default function ProcessPage() {
       }, 2000);
 
       try {
-        const response = await fetch(`/api/${selectedFeature}`, {
+        const response = await fetch('/api/process', {
           method: 'POST',
           body: formData,
-          signal: controller.signal,
-          // Add timeout header
-          headers: {
-            'X-Processing-Timeout': '180'
-          }
         });
 
         if (!response.ok) {
-          throw new Error(await response.text() || 'Failed to process image');
+          const errorText = await response.text();
+          throw new Error(errorText || 'Failed to process image');
         }
 
         const blob = await response.blob();
@@ -99,19 +92,15 @@ export default function ProcessPage() {
         setProcessedUrl(url);
         setProgress(100);
       } finally {
-        clearTimeout(timeoutId);
         clearInterval(progressInterval);
       }
     } catch (error: unknown) {
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          setError('Processing is taking longer than expected. Try reducing the image size or using a different format.');
-        } else {
-          setError(error.message || 'An error occurred while processing the image');
-        }
-      } else {
-        setError('An unexpected error occurred');
-      }
+      console.error('Processing error:', error);
+      setError(
+        error instanceof Error 
+          ? error.message 
+          : 'An unexpected error occurred while processing the image'
+      );
     } finally {
       setIsProcessing(false);
     }
