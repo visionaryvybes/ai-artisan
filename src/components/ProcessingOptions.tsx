@@ -6,6 +6,7 @@ import {
   UpscaleScale,
   EnhanceStyle,
   AIModel,
+  EnhancePreset,
 } from '@/lib/types';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -149,11 +150,73 @@ export function ProcessingOptions({
       {/* Enhanced Enhance Options with Advanced Controls */}
       {selectedFunction === 'enhance' && (
         <>
-          <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg mb-4">
-            <p className="text-xs text-purple-300">
-              GPU-accelerated processing. Adjust sliders for real-time preview.
-            </p>
+          {/* Presets - Similar to Krea */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Quick Presets
+            </label>
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {([
+                { id: 'none', name: 'None' },
+                { id: 'cinematic', name: 'Cinematic' },
+                { id: 'natural', name: 'Natural' },
+                { id: 'hdr', name: 'HDR' },
+                { id: 'portrait', name: 'Portrait' },
+                { id: 'landscape', name: 'Landscape' },
+                { id: 'vintage', name: 'Vintage' },
+              ] as { id: EnhancePreset; name: string }[]).map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => {
+                    const presetValues: Record<EnhancePreset, Partial<Options>> = {
+                      none: { clarity: 0, sharpness: 0, vibrance: 0, contrast: 0, saturation: 0, brightness: 0, denoise: 0 },
+                      cinematic: { clarity: 30, sharpness: 20, vibrance: -10, contrast: 20, saturation: -15, brightness: -5, denoise: 5 },
+                      natural: { clarity: 15, sharpness: 10, vibrance: 10, contrast: 5, saturation: 5, brightness: 0, denoise: 10 },
+                      hdr: { clarity: 50, sharpness: 30, vibrance: 25, contrast: 30, saturation: 20, brightness: 0, denoise: 0 },
+                      portrait: { clarity: 20, sharpness: 15, vibrance: 15, contrast: 10, saturation: 10, brightness: 5, denoise: 20 },
+                      landscape: { clarity: 40, sharpness: 25, vibrance: 20, contrast: 15, saturation: 15, brightness: 0, denoise: 5 },
+                      vintage: { clarity: 10, sharpness: 5, vibrance: -20, contrast: 15, saturation: -30, brightness: 0, denoise: 0, hue: 15 },
+                    };
+                    onOptionsChange({ preset: preset.id, ...presetValues[preset.id] });
+                  }}
+                  disabled={disabled}
+                  className={cn(
+                    'px-2 py-1.5 rounded-lg text-xs font-medium transition-all',
+                    options.preset === preset.id
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-lg shadow-purple-500/25'
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700',
+                    disabled && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  {preset.name}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* AI Strength - like Krea */}
+          <OptionSlider
+            label="AI Strength"
+            value={options.aiStrength || 50}
+            onChange={(v) => onOptionsChange({ aiStrength: v })}
+            min={0}
+            max={100}
+            disabled={disabled}
+            suffix="%"
+            description="How much AI enhancement to apply"
+          />
+
+          {/* Resemblance - like Krea */}
+          <OptionSlider
+            label="Resemblance"
+            value={options.resemblance ?? 80}
+            onChange={(v) => onOptionsChange({ resemblance: v })}
+            min={0}
+            max={100}
+            disabled={disabled}
+            suffix="%"
+            description="How close to original (100% = most similar)"
+          />
 
           <OptionSlider
             label="Clarity"
@@ -232,37 +295,6 @@ export function ProcessingOptions({
             suffix="°"
             description="Shift color hue"
           />
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Style Preset
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['natural', 'vivid', 'dramatic'] as EnhanceStyle[]).map((style) => (
-                <button
-                  key={style}
-                  onClick={() => {
-                    const presets: Record<EnhanceStyle, Partial<Options>> = {
-                      natural: { clarity: 20, sharpness: 15, vibrance: 10, contrast: 5 },
-                      vivid: { clarity: 40, sharpness: 25, vibrance: 30, contrast: 15, saturation: 20 },
-                      dramatic: { clarity: 60, sharpness: 40, contrast: 30, vibrance: 20 },
-                    };
-                    onOptionsChange({ style, ...presets[style] });
-                  }}
-                  disabled={disabled}
-                  className={cn(
-                    'px-3 py-2 rounded-lg text-xs font-medium transition-all capitalize',
-                    options.style === style
-                      ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-lg shadow-purple-500/25'
-                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700',
-                    disabled && 'opacity-50 cursor-not-allowed'
-                  )}
-                >
-                  {style}
-                </button>
-              ))}
-            </div>
-          </div>
         </>
       )}
 

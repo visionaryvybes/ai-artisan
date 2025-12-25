@@ -92,3 +92,4 @@ torch/
 
 # Large model files (use Git LFS instead)
 public/models/**/*.bin
+.env*.local

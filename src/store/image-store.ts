@@ -79,13 +79,15 @@ export const useImageStore = create<ImageStore>()(
         saturation: 0,
         sharpness: 0,
         style: 'natural',
-        // Advanced controls
+        // Advanced controls - similar to Krea
         clarity: 0,
         denoise: 0,
         vibrance: 0,
         structure: 0,
         hue: 0,
         aiStrength: 50,
+        resemblance: 80, // How close to original (100 = most similar)
+        preset: 'none',
         aiModel: 'balanced',
         // Colorize
         colorIntensity: 0.7,
