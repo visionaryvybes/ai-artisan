@@ -1,174 +1,358 @@
+// Zustand store for image processing state
+
 import { create } from 'zustand';
-import { type AIFeature, AI_MODELS } from '@/config/ai-models';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  ImageToProcess,
+  GalleryImage,
+  ProcessingFunction,
+  ProcessingOptions,
+  ProcessingProgress,
+} from '@/lib/types';
+import {
+  processImage,
+  validateImage,
+  getImageDimensions,
+  blobToDataUrl,
+} from '@/lib/image-processor';
 
-export interface ProcessedImage {
-  id: string;
-  originalImage: string;
-  processedImage: string;
-  feature: AIFeature;
-  timestamp: number;
-}
+interface ImageStore {
+  // Queue state
+  images: ImageToProcess[];
+  currentImageId: string | null;
 
-interface LoadingState {
+  // Processing state
   isProcessing: boolean;
-  isLoadingHistory: boolean;
-  isLoadingImage: boolean;
-  uploadProgress: number;
+  selectedFunction: ProcessingFunction | null;
+  processingOptions: ProcessingOptions;
+
+  // Gallery state
+  gallery: GalleryImage[];
+
+  // Device info
+  isReady: boolean;
+
+  // Actions - Queue management
+  addImages: (files: File[]) => Promise<void>;
+  removeImage: (id: string) => void;
+  clearQueue: () => void;
+  selectImage: (id: string) => void;
+
+  // Actions - Processing
+  setSelectedFunction: (fn: ProcessingFunction | null) => void;
+  setProcessingOptions: (options: Partial<ProcessingOptions>) => void;
+  processCurrentImage: () => Promise<void>;
+  processAllImages: () => Promise<void>;
+
+  // Actions - Gallery
+  addToGallery: (image: GalleryImage) => void;
+  removeFromGallery: (id: string) => void;
+  clearGallery: () => void;
+
+  // Actions - Setup
+  setReady: (ready: boolean) => void;
+
+  // Internal
+  updateImageProgress: (id: string, progress: ProcessingProgress) => void;
+  updateImageStatus: (
+    id: string,
+    status: ImageToProcess['status'],
+    data?: Partial<ImageToProcess>
+  ) => void;
 }
 
-interface ImageState {
-  selectedImage: File | null;
-  processedImage: string | null;
-  selectedFeature: AIFeature;
-  error: string | null;
-  history: ProcessedImage[];
-  urls: Set<string>;
-  loading: LoadingState;
-  setSelectedImage: (image: File | null) => void;
-  setProcessedImage: (url: string | null) => void;
-  setSelectedFeature: (feature: AIFeature) => void;
-  setError: (error: string | null) => void;
-  setLoading: (state: Partial<LoadingState>) => void;
-  addToHistory: (image: ProcessedImage) => void;
-  removeFromHistory: (id: string) => void;
-  loadFromHistory: (image: ProcessedImage) => void;
-  clearHistory: () => void;
-  addUrl: (url: string) => void;
-  removeUrl: (url: string) => void;
-  clearUrls: () => void;
-}
+export const useImageStore = create<ImageStore>()(
+  persist(
+    (set, get) => ({
+      // Initial state
+      images: [],
+      currentImageId: null,
+      isProcessing: false,
+      selectedFunction: null,
+      processingOptions: {
+        // Upscale
+        scale: 2,
+        // Basic adjustments
+        brightness: 0,
+        contrast: 0,
+        saturation: 0,
+        sharpness: 0,
+        style: 'natural',
+        // Advanced controls
+        clarity: 0,
+        denoise: 0,
+        vibrance: 0,
+        structure: 0,
+        hue: 0,
+        aiStrength: 50,
+        aiModel: 'balanced',
+        // Colorize
+        colorIntensity: 0.7,
+        // Depth map
+        depthColorize: true,
+        depthInvert: false,
+        // Output
+        quality: 90,
+        format: 'png',
+      },
+      gallery: [],
+      isReady: false,
 
-const initialState = {
-  selectedImage: null,
-  processedImage: null,
-  selectedFeature: 'enhance' as AIFeature,
-  error: null,
-  history: [],
-  urls: new Set<string>(),
-  loading: {
-    isProcessing: false,
-    isLoadingHistory: false,
-    isLoadingImage: false,
-    uploadProgress: 0,
-  },
+      // Setup
+      setReady: (ready: boolean) => set({ isReady: ready }),
+
+      // Queue management
+      addImages: async (files: File[]) => {
+        const newImages: ImageToProcess[] = [];
+
+        for (const file of files) {
+          const validation = validateImage(file);
+          if (!validation.valid) {
+            console.warn(`Skipping ${file.name}: ${validation.error}`);
+            continue;
+          }
+
+          const id = uuidv4();
+          const previewUrl = URL.createObjectURL(file);
+
+          let dimensions;
+          try {
+            dimensions = await getImageDimensions(previewUrl);
+          } catch {
+            dimensions = undefined;
+          }
+
+          newImages.push({
+            id,
+            file,
+            name: file.name,
+            previewUrl,
+            originalDimensions: dimensions,
+            status: 'pending',
+            progress: 0,
+          });
+        }
+
+        set((state) => {
+          const updatedImages = [...state.images, ...newImages];
+          return {
+            images: updatedImages,
+            currentImageId:
+              state.currentImageId || newImages[0]?.id || state.currentImageId,
+          };
+        });
+      },
+
+      removeImage: (id: string) => {
+        set((state) => {
+          const image = state.images.find((img) => img.id === id);
+          if (image) {
+            URL.revokeObjectURL(image.previewUrl);
+            if (image.processedUrl) {
+              URL.revokeObjectURL(image.processedUrl);
+            }
+          }
+
+          const newImages = state.images.filter((img) => img.id !== id);
+          return {
+            images: newImages,
+            currentImageId:
+              state.currentImageId === id
+                ? newImages[0]?.id || null
+                : state.currentImageId,
+          };
+        });
+      },
+
+      clearQueue: () => {
+        const { images } = get();
+        images.forEach((img) => {
+          URL.revokeObjectURL(img.previewUrl);
+          if (img.processedUrl) {
+            URL.revokeObjectURL(img.processedUrl);
+          }
+        });
+        set({ images: [], currentImageId: null });
+      },
+
+      selectImage: (id: string) => {
+        set({ currentImageId: id });
+      },
+
+      // Processing
+      setSelectedFunction: (fn: ProcessingFunction | null) => {
+        set({ selectedFunction: fn });
+      },
+
+      setProcessingOptions: (options: Partial<ProcessingOptions>) => {
+        set((state) => ({
+          processingOptions: { ...state.processingOptions, ...options },
+        }));
+      },
+
+      processCurrentImage: async () => {
+        const { currentImageId, images, selectedFunction, processingOptions } =
+          get();
+
+        if (!currentImageId || !selectedFunction) return;
+
+        const image = images.find((img) => img.id === currentImageId);
+        if (!image || image.status === 'processing') return;
+
+        set({ isProcessing: true });
+        get().updateImageStatus(currentImageId, 'processing');
+
+        const startTime = Date.now();
+
+        try {
+          const processedBlob = await processImage(
+            image.file,
+            selectedFunction,
+            processingOptions,
+            (progress) => {
+              get().updateImageProgress(currentImageId, progress);
+            }
+          );
+
+          const processedUrl = URL.createObjectURL(processedBlob);
+          const processingTime = Date.now() - startTime;
+
+          get().updateImageStatus(currentImageId, 'completed', {
+            processedUrl,
+            processedBlob,
+            processingFunction: selectedFunction,
+            options: { ...processingOptions },
+            processingTime,
+          });
+
+          // Add to gallery
+          try {
+            const thumbnail = await blobToDataUrl(processedBlob);
+            const dims = await getImageDimensions(processedUrl);
+            get().addToGallery({
+              id: uuidv4(),
+              originalName: image.name,
+              thumbnailUrl: thumbnail.length > 50000 ? thumbnail.slice(0, 50000) : thumbnail,
+              fullUrl: processedUrl,
+              timestamp: new Date().toISOString(),
+              processingFunction: selectedFunction,
+              options: { ...processingOptions },
+              dimensions: dims,
+            });
+          } catch (e) {
+            console.warn('Failed to add to gallery:', e);
+          }
+        } catch (error) {
+          get().updateImageStatus(currentImageId, 'error', {
+            error:
+              error instanceof Error ? error.message : 'Processing failed',
+          });
+        } finally {
+          set({ isProcessing: false });
+        }
+      },
+
+      processAllImages: async () => {
+        const { images, selectedFunction } = get();
+
+        if (!selectedFunction) return;
+
+        const pendingImages = images.filter(
+          (img) => img.status === 'pending' || img.status === 'error'
+        );
+
+        for (const image of pendingImages) {
+          get().selectImage(image.id);
+          await get().processCurrentImage();
+        }
+      },
+
+      // Gallery
+      addToGallery: (image: GalleryImage) => {
+        set((state) => {
+          // Keep only the last 20 images
+          const newGallery = [...state.gallery, image];
+          if (newGallery.length > 20) {
+            newGallery.shift();
+          }
+          return { gallery: newGallery };
+        });
+      },
+
+      removeFromGallery: (id: string) => {
+        set((state) => ({
+          gallery: state.gallery.filter((img) => img.id !== id),
+        }));
+      },
+
+      clearGallery: () => {
+        set({ gallery: [] });
+      },
+
+      // Internal helpers
+      updateImageProgress: (id: string, progress: ProcessingProgress) => {
+        set((state) => ({
+          images: state.images.map((img) =>
+            img.id === id
+              ? {
+                  ...img,
+                  progress: progress.progress,
+                  progressMessage: progress.message,
+                }
+              : img
+          ),
+        }));
+      },
+
+      updateImageStatus: (
+        id: string,
+        status: ImageToProcess['status'],
+        data?: Partial<ImageToProcess>
+      ) => {
+        set((state) => ({
+          images: state.images.map((img) =>
+            img.id === id
+              ? {
+                  ...img,
+                  status,
+                  progress: status === 'completed' ? 100 : img.progress,
+                  ...data,
+                }
+              : img
+          ),
+        }));
+      },
+    }),
+    {
+      name: 'ai-artisan-storage',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        // Only persist gallery (thumbnails only, no blobs)
+        gallery: state.gallery.map((img) => ({
+          ...img,
+          fullUrl: '', // Don't persist blob URLs
+        })),
+        processingOptions: state.processingOptions,
+        selectedFunction: state.selectedFunction,
+      }),
+    }
+  )
+);
+
+// Selector hooks for common use cases
+export const useCurrentImage = () => {
+  const images = useImageStore((state) => state.images);
+  const currentImageId = useImageStore((state) => state.currentImageId);
+  return images.find((img) => img.id === currentImageId);
 };
 
-const validateFeature = (feature: AIFeature | undefined): AIFeature => {
-  if (!feature || !(feature in AI_MODELS)) {
-    return 'enhance';
-  }
-  return feature;
+export const usePendingImages = () => {
+  const images = useImageStore((state) => state.images);
+  return images.filter((img) => img.status === 'pending');
 };
 
-export const useImageStore = create<ImageState>()((set, get) => ({
-  ...initialState,
-  setSelectedImage: (image) => {
-    set((state) => ({
-      selectedImage: image,
-      loading: { ...state.loading, isLoadingImage: Boolean(image) },
-    }));
-  },
-  setProcessedImage: (url) => {
-    const state = get();
-    if (state.processedImage) {
-      URL.revokeObjectURL(state.processedImage);
-      state.urls.delete(state.processedImage);
-    }
-    set((state) => ({
-      processedImage: url,
-      loading: { ...state.loading, isLoadingImage: false },
-    }));
-    if (url) {
-      get().addUrl(url);
-    }
-  },
-  setSelectedFeature: (feature) => set({ selectedFeature: validateFeature(feature) }),
-  setError: (error) => set({ error }),
-  setLoading: (loadingState) => 
-    set((state) => ({
-      loading: { ...state.loading, ...loadingState },
-    })),
-  addToHistory: (image) =>
-    set((state) => {
-      get().addUrl(image.originalImage);
-      get().addUrl(image.processedImage);
-
-      return {
-        history: [
-          {
-            ...image,
-            feature: validateFeature(image.feature),
-            id: String(Date.now()),
-            timestamp: Date.now(),
-          },
-          ...state.history,
-        ].slice(0, 10),
-        loading: { ...state.loading, isLoadingHistory: false },
-      };
-    }),
-  removeFromHistory: (id) =>
-    set((state) => {
-      const item = state.history.find((i) => i.id === id);
-      if (item) {
-        URL.revokeObjectURL(item.originalImage);
-        URL.revokeObjectURL(item.processedImage);
-        get().removeUrl(item.originalImage);
-        get().removeUrl(item.processedImage);
-      }
-      return {
-        history: state.history.filter((item) => item.id !== id),
-        loading: { ...state.loading, isLoadingHistory: false },
-      };
-    }),
-  loadFromHistory: (image) => {
-    const state = get();
-    if (state.processedImage) {
-      URL.revokeObjectURL(state.processedImage);
-      state.urls.delete(state.processedImage);
-    }
-    set((state) => ({
-      selectedImage: null,
-      processedImage: image.processedImage,
-      selectedFeature: validateFeature(image.feature),
-      error: null,
-      loading: { ...state.loading, isLoadingHistory: true },
-    }));
-    get().addUrl(image.processedImage);
-    // Reset loading state after a short delay
-    setTimeout(() => {
-      set((state) => ({
-        loading: { ...state.loading, isLoadingHistory: false },
-      }));
-    }, 500);
-  },
-  clearHistory: () => {
-    const state = get();
-    state.history.forEach((item) => {
-      URL.revokeObjectURL(item.originalImage);
-      URL.revokeObjectURL(item.processedImage);
-      state.urls.delete(item.originalImage);
-      state.urls.delete(item.processedImage);
-    });
-    set((state) => ({
-      history: [],
-      loading: { ...state.loading, isLoadingHistory: false },
-    }));
-  },
-  addUrl: (url) => set((state) => ({ urls: new Set([...state.urls, url]) })),
-  removeUrl: (url) => set((state) => {
-    const newUrls = new Set(state.urls);
-    newUrls.delete(url);
-    return { urls: newUrls };
-  }),
-  clearUrls: () => {
-    const state = get();
-    state.urls.forEach((url) => {
-      try {
-        URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error('Failed to revoke URL:', error);
-      }
-    });
-    set({ urls: new Set() });
-  },
-})); 
+export const useCompletedImages = () => {
+  const images = useImageStore((state) => state.images);
+  return images.filter((img) => img.status === 'completed');
+};

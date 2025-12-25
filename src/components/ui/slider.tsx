@@ -1,6 +1,8 @@
+'use client';
+
 import { forwardRef } from 'react';
 import * as SliderPrimitive from '@radix-ui/react-slider';
-import { cn } from '@/utils';
+import { cn } from '@/lib/utils';
 
 interface SliderProps {
   value: number[];
@@ -46,4 +48,4 @@ const Slider = forwardRef<HTMLDivElement, SliderProps>(
 
 Slider.displayName = 'Slider';
 
-export { Slider }; 
+export { Slider };

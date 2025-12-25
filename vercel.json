@@ -4,13 +4,23 @@
   "devCommand": "next dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "regions": ["sfo1"],
+  "regions": ["iad1"],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "Cross-Origin-Embedder-Policy",
+          "value": "require-corp"
+        }
+      ]
+    }
+  ],
   "env": {
-    "NEXT_PUBLIC_API_URL": "/api",
-    "NEXT_PUBLIC_MAX_FILE_SIZE": "10485760",
-    "NEXT_PUBLIC_SUPPORTED_FORMATS": "jpeg,jpg,png,webp",
-    "NEXT_PUBLIC_MAX_BATCH_SIZE": "10",
-    "NEXT_PUBLIC_ENABLE_AI_FEATURES": "true",
     "NODE_ENV": "production"
   }
-} 
+}

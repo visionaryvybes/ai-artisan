@@ -1,33 +1,75 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Temporarily disable type checking during build
-  typescript: {
-    ignoreBuildErrors: true
-  },
-  // Temporarily disable ESLint during build
-  eslint: {
-    ignoreDuringBuilds: true
-  },
-  // Configure page extensions
-  pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
-  // Enable production mode features
+  // Enable strict mode for better development experience
   reactStrictMode: true,
-  // Configure image domains
+
+  // Configure image optimization
   images: {
-    domains: ['localhost', 'ai-artisan.vercel.app'],
+    domains: ['localhost'],
     formats: ['image/avif', 'image/webp'],
-    unoptimized: process.env.NODE_ENV === 'development'
+    unoptimized: true, // Required for static export compatibility
   },
-  // Enable webpack memory optimization
-  webpack: (config) => {
-    config.watchOptions = {
-      poll: 1000,
-      aggregateTimeout: 300,
+
+  // Webpack configuration for client-side AI libraries
+  webpack: (config, { isServer }) => {
+    // Handle ONNX runtime and other native modules
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+      crypto: false,
     };
+
+    // Ensure proper handling of WebAssembly files
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+      layers: true,
+    };
+
+    // Add rule for WASM files
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: 'webassembly/async',
+    });
+
+    // Handle ONNX runtime - mark as external to prevent bundling issues
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'onnxruntime-node': false,
+      'sharp': false,
+    };
+
+    // Ignore binary files
+    config.module.rules.push({
+      test: /\.node$/,
+      use: 'ignore-loader',
+    });
+
     return config;
   },
-  // Output as standalone for better Vercel compatibility
-  output: 'standalone'
+
+  // Headers for SharedArrayBuffer (required for some AI features)
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+        ],
+      },
+    ];
+  },
+
+  // Output configuration for Vercel
+  output: 'standalone',
 };
 
-module.exports = nextConfig; 
+module.exports = nextConfig;
