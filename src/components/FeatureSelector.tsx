@@ -13,6 +13,7 @@ import {
   Camera,
   Layers,
   Smile,
+  Paintbrush,
 } from 'lucide-react';
 
 interface Feature {
@@ -101,6 +102,14 @@ const features: Feature[] = [
     name: 'Face Enhance',
     description: 'Detect & enhance faces',
     icon: <Smile className="w-5 h-5" />,
+    category: 'advanced',
+    isNew: true,
+  },
+  {
+    id: 'style-transfer',
+    name: 'Style Transfer',
+    description: 'Apply artistic styles',
+    icon: <Paintbrush className="w-5 h-5" />,
     category: 'advanced',
     isNew: true,
   },

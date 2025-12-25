@@ -500,6 +500,61 @@ export function ProcessingOptions({
           </p>
         </div>
       )}
+
+      {/* Style Transfer Options */}
+      {selectedFunction === 'style-transfer' && (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Artistic Style
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { id: 'oil-painting', name: 'Oil Painting' },
+                { id: 'watercolor', name: 'Watercolor' },
+                { id: 'pencil-sketch', name: 'Pencil Sketch' },
+                { id: 'pop-art', name: 'Pop Art' },
+                { id: 'vintage-film', name: 'Vintage Film' },
+                { id: 'cyberpunk', name: 'Cyberpunk' },
+                { id: 'anime', name: 'Anime' },
+                { id: 'impressionist', name: 'Impressionist' },
+              ] as { id: Options['styleType']; name: string }[]).map((style) => (
+                <button
+                  key={style.id}
+                  onClick={() => onOptionsChange({ styleType: style.id })}
+                  disabled={disabled}
+                  className={cn(
+                    'px-3 py-2 rounded-lg text-xs font-medium transition-all',
+                    options.styleType === style.id
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-lg shadow-purple-500/25'
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700',
+                    disabled && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  {style.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <OptionSlider
+            label="Effect Intensity"
+            value={options.aiStrength || 50}
+            onChange={(v) => onOptionsChange({ aiStrength: v })}
+            min={10}
+            max={100}
+            disabled={disabled}
+            suffix="%"
+            description="How strong the artistic effect should be"
+          />
+
+          <div className="p-3 bg-gray-800/50 rounded-lg">
+            <p className="text-xs text-gray-400">
+              Transform your images into stunning artwork with various artistic styles.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

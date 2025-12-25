@@ -94,6 +94,8 @@ export const useImageStore = create<ImageStore>()(
         // Depth map
         depthColorize: true,
         depthInvert: false,
+        // Style Transfer
+        styleType: 'oil-painting',
         // Output
         quality: 90,
         format: 'png',
